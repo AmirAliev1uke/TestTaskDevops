@@ -3,7 +3,7 @@
 # Скрипт мониторинга процесса test для Linux
 LOG_FILE="/var/log/monitoring.log"
 MONITORING_URL="https://test.com/monitoring/test/api"
-PROCESS_NAME="test"  # ИЗМЕНИЛИ ЗДЕСЬ!
+PROCESS_NAME="test"
 STATE_FILE="/var/lib/monitoring/previous_state.txt"
 
 # Создаем необходимые директории и файл лога
