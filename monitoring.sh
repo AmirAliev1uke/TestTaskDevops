@@ -4,12 +4,17 @@
 LOG_FILE="/var/log/monitoring.log"
 MONITORING_URL="https://test.com/monitoring/test/api"
 PROCESS_NAME="test"
-STATE_FILE="/var/lib/monitoring/previous_state.txt"
+STATE_FILE="/var/lib/monitoring/previous_pid.txt"
 
 # Создаем необходимые директории и файл лога
 mkdir -p /var/lib/monitoring
 mkdir -p /var/log
 touch "$LOG_FILE"
+chmod 644 "$LOG_FILE"
+chown root:root "$LOG_FILE"
+touch "$STATE_FILE" 2>/dev/null || true
+chmod 644 "$STATE_FILE"
+chown root:root "$STATE_FILE"
 
 # Функция для логирования
 log_message() {
@@ -18,11 +23,7 @@ log_message() {
 
 # Функция проверки процесса
 check_process() {
-    if pgrep -f "$PROCESS_NAME" > /dev/null 2>&1; then
-        echo "running"
-    else
-        echo "stopped"
-    fi
+    pgrep -x "$PROCESS_NAME" 2>/dev/null
 }
 
 # Функция проверки URL
@@ -39,18 +40,18 @@ check_url() {
 
 # Функция определения перезапуска
 check_restart() {
-    local current_state="$1"
-    local previous_state
+    local current_pid="$1"
+    local previous_pid
     
     if [ -f "$STATE_FILE" ]; then
-        previous_state=$(cat "$STATE_FILE")
+        previous_pid=$(cat "$STATE_FILE" 2>/dev/null)
     else
-        previous_state="unknown"
+        previous_pid=""
     fi
     
-    echo "$current_state" > "$STATE_FILE"
+    echo "$current_pid" > "$STATE_FILE"
     
-    if [ "$previous_state" = "stopped" ] && [ "$current_state" = "running" ]; then
+    if [ -n "$previous_pid" ] && [ -n "$current_pid" ] && [ "$previous_pid" != "$current_pid" ]; then
         return 0
     else
         return 1
@@ -59,25 +60,22 @@ check_restart() {
 
 # Основная логика
 main() {
-    local process_state
-    process_state=$(check_process)
+    local current_pid
+    current_pid=$(check_process)
     
-    case "$process_state" in
-        "running")
-            if check_restart "$process_state"; then
-                log_message "RESTART: Process $PROCESS_NAME was restarted"
-            fi
-            
-            if check_url; then
-                log_message "SUCCESS: Process $PROCESS_NAME is running and monitoring URL is accessible"
-            else
-                log_message "ERROR: Process $PROCESS_NAME is running but monitoring URL is not accessible"
-            fi
-            ;;
-        "stopped")
-            check_restart "$process_state" > /dev/null
-            ;;
-    esac
+    if [ -n "$current_pid" ]; then
+        if check_restart "$current_pid"; then
+            log_message "RESTART: Process $PROCESS_NAME was restarted"
+        fi
+        
+        if check_url; then
+            log_message "SUCCESS: Process $PROCESS_NAME is running and monitoring URL is accessible"
+        else
+            log_message "ERROR: Process $PROCESS_NAME is running but monitoring URL is not accessible"
+        fi
+    else
+        check_restart "" > /dev/null
+    fi
 }
 
 main
